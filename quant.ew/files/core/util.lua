@@ -271,6 +271,10 @@ function util.make_type(typedata)
         inner = inner .. "bool "..var..";\n"
     end
 
+    for _, var in ipairs(typedata.vecbool or {}) do
+        inner = inner .. "bool "..var.."[16];\n"
+    end
+
     for _, var in ipairs(typedata.peer_id or {}) do
         inner = inner .. "char "..var.."[16];\n"
     end
@@ -290,14 +294,19 @@ function util.log(...)
     if ctx.proxy_opt.debug then
         GamePrint(...)
     end
+    print(...)
 end
 
 function util.serialize_entity(ent)
     -- Serialized entities usually get sent to other clients, and it's a very bad idea to try and send them another WorldState.
-    if EntityHasTag(ent, "world_state") or EntityGetFirstComponentIncludingDisabled(ent, "WorldStateComponent") ~= nil then
+    if util.is_world_state_entity_like(ent) then
         error("Tried to serialize WorldStateEntity")
     end
     return np.SerializeEntity(ent)
+end
+
+function util.is_world_state_entity_like(ent)
+    return EntityHasTag(ent, "world_state") or EntityGetFirstComponentIncludingDisabled(ent, "WorldStateComponent") ~= nil
 end
 
 function util.deserialize_entity(ent_data, x, y)

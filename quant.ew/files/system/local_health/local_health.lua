@@ -18,6 +18,12 @@ local status_effects = status_effects
 
 local module = {}
 
+local last_damage_info = {0, "unknown", 1}
+
+np.CrossCallAdd("ew_damage_message", function(message, entity_thats_responsible)
+    last_damage_info = {GameGetFrameNum(), message, entity_thats_responsible}
+end)
+
 function module.on_player_died(player_entity)
     -- This would be a good place to put on death logic
     -- BUT... player entity is already dead at this point, so it's a bit problematic to do stuff.
@@ -163,10 +169,53 @@ local function allow_notplayer_perk(perk_id)
     return not ignored_perks[perk_id]
 end
 
+rpc.opts_everywhere()
+rpc.opts_reliable()
+function rpc.show_death_message(untranslated_message, source_player)
+    local message = "unknown"
+    if untranslated_message ~= nil then
+        message = GameTextGetTranslatedOrNot(untranslated_message)
+    end
+    if source_player ~= nil then
+        message = message .. " from "..source_player
+    end
+
+    local dead_nickname = ctx.rpc_player_data.name
+    local full_msg = dead_nickname .. " died: " .. message
+    GamePrint(full_msg)
+end
+
+local function show_death_message()
+    local current_frame = GameGetFrameNum()
+    -- Check if message is recent enough
+    if current_frame - last_damage_info[1] < 60 then
+        local message = last_damage_info[2]
+        local source = nil
+        local source_ent = last_damage_info[3]
+        local maybe_player = player_fns.get_player_data_by_local_entity_id(source_ent)
+        if maybe_player ~= nil then
+            source = maybe_player.name
+        end
+        rpc.show_death_message(message, source)
+    else
+        rpc.show_death_message(nil, nil)
+    end
+end
+
 local function player_died()
     if ctx.my_player.entity == nil then
         return
     end
+    if util.is_world_state_entity_like(ctx.my_player.entity) then
+        util.log("Err: Current player is world state like.")
+        return
+    end
+
+    -- Don't show "run ended" as reason of death
+    if not ctx.run_ended then
+        show_death_message()
+    end
+
     rpc.remove_homing(false)
     -- Serialize inventory, perks, and max_hp, we'll need to copy it over to notplayer.
     local item_data = inventory_helper.get_item_data(ctx.my_player)
@@ -202,9 +251,11 @@ local function player_died()
     set_cosmetics_locally(ctx.my_id)
 
     local inv = EntityGetFirstComponentIncludingDisabled(ctx.my_player.entity, "Inventory2Component")
-    ComponentSetValue2(inv, "mItemHolstered", false)
-    ComponentSetValue2(inv, "mActualActiveItem", 0)
-    ComponentSetValue2(inv, "mActiveItem", 0)
+    if inv ~= nil then
+        ComponentSetValue2(inv, "mItemHolstered", false)
+        ComponentSetValue2(inv, "mActualActiveItem", 0)
+        ComponentSetValue2(inv, "mActiveItem", 0)
+    end
 
     polymorph.switch_entity(ent + 1)
 
@@ -223,16 +274,25 @@ end
 local function do_game_over(message)
     net.proxy_notify_game_over()
     ctx.run_ended = true
-    local damage_model = EntityGetFirstComponentIncludingDisabled(ctx.my_player.entity, "DamageModelComponent")
     GameRemoveFlagRun("ew_flag_notplayer_active")
     set_camera_free(true, ctx.my_player.entity)
-    if damage_model ~= nil and #(EntityGetAllChildren(ctx.my_player.entity) or {}) ~= 0 then
+
+    if #(EntityGetAllChildren(ctx.my_player.entity) or {}) ~= 0 then
         local ent = end_poly_effect(ctx.my_player.entity)
         if ent ~= nil then
             polymorph.switch_entity(ent)
             if ctx.my_player.entity ~= nil then
-                ComponentSetValue2(damage_model, "wait_for_kill_flag_on_death", false)
-                EntityInflictDamage(ctx.my_player.entity, 1000000, "DAMAGE_CURSE", message, "NONE", 0, 0, GameGetWorldStateEntity())
+                local stat_component = EntityGetFirstComponentIncludingDisabled(ctx.my_player.entity, "GameStatsComponent")
+                if stat_component ~= nil then
+                    ComponentSetValue2(stat_component, "extra_death_msg", "")
+                    print("extra_death_msg removed")
+                end
+                
+                local damage_model = EntityGetFirstComponentIncludingDisabled(ctx.my_player.entity, "DamageModelComponent")
+                if damage_model ~= nil then
+                    ComponentSetValue2(damage_model, "wait_for_kill_flag_on_death", false)
+                    EntityInflictDamage(ctx.my_player.entity, 1000000, "DAMAGE_CURSE", message, "NONE", 0, 0, GameGetWorldStateEntity())
+                end
             end
         end
     end
@@ -246,6 +306,10 @@ function module.on_local_player_spawn(my_player)
     local damage_model = EntityGetFirstComponentIncludingDisabled(my_player.entity, "DamageModelComponent")
     ComponentSetValue2(damage_model, "wait_for_kill_flag_on_death", true)
     ctx.my_player.status = { is_alive = true }
+
+    util.ensure_component_present(my_player.entity, "LuaComponent", "ew_player_damage", {
+        script_damage_received = "mods/quant.ew/files/system/local_health/grab_damage_message.lua"
+    })
 end
 
 function module.on_world_update()
