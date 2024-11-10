@@ -263,9 +263,8 @@ function module.on_world_update()
     local hp_new, max_hp_new, has_hp = util.get_ent_health(ctx.my_player.entity)
     if not ctx.my_player.currently_polymorphed and has_hp then
         if hp_new <= 0 then
-            -- Restore the player back to small amount of hp.
-            local new_hp = 3 * max_hp_new / 20
-            local final_hp = math.max(new_hp, math.min(2/5, max_hp_new))
+            -- Restore the player back to half HP.
+            local final_hp = max_hp_new/2
             util.set_ent_health(ctx.my_player.entity, {final_hp, max_hp_new})
             player_died()
         end
@@ -418,9 +417,8 @@ ctx.cap.health = {
             polymorph.switch_entity(end_poly_effect(ctx.my_player.entity))
             local _, max_hp_new, has_hp = util.get_ent_health(ctx.my_player.entity)
             if not ctx.my_player.currently_polymorphed and has_hp then
-                -- Restore the player back to small amount of hp.
-                local new_hp = 3 * max_hp_new / 20
-                local final_hp = math.max(new_hp, math.min(2/5, max_hp_new))
+                -- Restore the player back to half HP.
+                local final_hp = max_hp_new/2
                 util.set_ent_health(ctx.my_player.entity, {final_hp, max_hp_new})
             end
             async(function()
