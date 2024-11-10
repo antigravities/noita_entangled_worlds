@@ -194,7 +194,8 @@ local function player_died()
     ctx.my_player.entity = ent + 1
     do_switch_effect(false)
     EntitySetName(ctx.my_player.entity, ctx.my_id.."?")
-    util.set_ent_health(ctx.my_player.entity, {max_hp, max_hp})
+    -- cut hp in half because we are wusses
+    util.set_ent_health(ctx.my_player.entity, {max_hp/2, max_hp})
     local iron = LoadGameEffectEntityTo(ctx.my_player.entity, "mods/quant.ew/files/system/local_health/notplayer/iron_stomach.xml")
     EntityAddTag(iron, "kill_on_revive")
     LoadGameEffectEntityTo(ctx.my_player.entity, "mods/quant.ew/files/system/spectate/no_tinker.xml")
