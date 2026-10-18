@@ -758,14 +758,12 @@ impl App {
                     self.show_lobby_list = true;
                 }
 
-                if cfg!(target_os = "linux") {
-                    ui.add_space(15.0);
-                    ui.label(tr("connect_steam_workaround_label"));
-                    ui.text_edit_singleline(&mut self.lobby_id_field);
-                    if ui.button(tr("connect_steam_connect_2")).clicked() {
-                        self.set_settings();
-                        self.connect_to_steam_lobby(self.lobby_id_field.clone());
-                    }
+                ui.add_space(15.0);
+                ui.label(tr("connect_steam_workaround_label"));
+                ui.text_edit_singleline(&mut self.lobby_id_field);
+                if ui.button(tr("connect_steam_connect_2")).clicked() {
+                    self.set_settings();
+                    self.connect_to_steam_lobby(self.lobby_id_field.clone());
                 }
             }
             Err(err) => {
